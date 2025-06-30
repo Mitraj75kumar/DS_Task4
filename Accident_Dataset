@@ -1,0 +1,149 @@
+import pandas as pd
+import zipfile
+import os
+from pathlib import Path
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+def extract_and_load_data():
+    """Extract and load the dataset from zip file"""
+    zip_path = Path(r"C:\Users\mitra\Downloads\RTA Dataset.csv.zip")
+    extract_to = Path(r"C:\Users\mitra\Downloads\RTA Dataset")
+    
+    try:
+        # Create extraction directory if needed
+        extract_to.mkdir(parents=True, exist_ok=True)
+        
+        # Extract the zip file
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            zip_ref.extractall(extract_to)
+            print(f"Extracted files to: {extract_to}")
+            
+        # Find the CSV file in extracted contents
+        csv_file = next(extract_to.glob('*.csv'), None)
+        if not csv_file:
+            raise FileNotFoundError("No CSV file found in the archive")
+            
+        print(f"Found data file: {csv_file}")
+        return pd.read_csv(csv_file)
+    
+    except Exception as e:
+        print(f"Error extracting/loading data: {e}")
+        return None
+
+def clean_data(df):
+    """Clean and prepare the dataset for analysis"""
+    # Convert column names to lowercase
+    df.columns = df.columns.str.lower()
+    
+    # Handle missing values
+    df = df.dropna(subset=['accident_severity'])
+    
+    # Convert date/time columns if present
+    time_cols = [col for col in df.columns if 'date' in col or 'time' in col]
+    for col in time_cols:
+        try:
+            df[col] = pd.to_datetime(df[col])
+        except:
+            continue
+            
+    return df
+
+def analyze_accidents(df):
+    """Perform comprehensive accident analysis"""
+    print("\nStarting analysis...")
+    
+    # 1. Accident Severity Analysis
+    if 'accident_severity' in df.columns:
+        plt.figure(figsize=(10, 6))
+        severity_counts = df['accident_severity'].value_counts()
+        sns.barplot(x=severity_counts.index, y=severity_counts.values, palette="viridis")
+        plt.title("Accident Severity Distribution")
+        plt.ylabel("Number of Accidents")
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+        plt.savefig('accident_severity.png')
+        plt.show()
+    
+    # 2. Weather Conditions Impact
+    if 'weather_conditions' in df.columns:
+        plt.figure(figsize=(12, 6))
+        weather_data = df.groupby(['weather_conditions', 'accident_severity']).size().unstack()
+        weather_data.plot(kind='bar', stacked=True, colormap='coolwarm')
+        plt.title("Accident Severity by Weather Conditions")
+        plt.ylabel("Number of Accidents")
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+        plt.savefig('weather_impact.png')
+        plt.show()
+    
+    # 3. Time Patterns
+    if 'time' in df.columns:
+        try:
+            df['hour'] = pd.to_datetime(df['time']).dt.hour
+            plt.figure(figsize=(12, 6))
+            sns.histplot(data=df, x='hour', bins=24, kde=True)
+            plt.title("Accident Frequency by Hour of Day")
+            plt.xlabel("Hour of Day")
+            plt.ylabel("Number of Accidents")
+            plt.xticks(range(0, 24))
+            plt.tight_layout()
+            plt.savefig('hourly_patterns.png')
+            plt.show()
+        except Exception as e:
+            print(f"Could not analyze time data: {e}")
+    
+    # 4. Vehicle Type Analysis
+    if 'vehicle_type' in df.columns:
+        plt.figure(figsize=(14, 8))
+        vehicle_data = df['vehicle_type'].value_counts().nlargest(15)
+        sns.barplot(x=vehicle_data.values, y=vehicle_data.index, palette="magma")
+        plt.title("Top 15 Vehicles Involved in Accidents")
+        plt.xlabel("Number of Accidents")
+        plt.ylabel("Vehicle Type")
+        plt.tight_layout()
+        plt.savefig('vehicle_analysis.png')
+        plt.show()
+    
+    # 5. Road Condition Impact
+    if 'road_surface_conditions' in df.columns:
+        plt.figure(figsize=(10, 6))
+        road_data = df.groupby('road_surface_conditions')['accident_severity'].value_counts().unstack()
+        road_data.plot(kind='bar', stacked=True, colormap='plasma')
+        plt.title("Accident Severity by Road Conditions")
+        plt.ylabel("Number of Accidents")
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+        plt.savefig('road_conditions_impact.png')
+        plt.show()
+
+def main():
+    print("Road Traffic Accident Analysis System")
+    print("Loading dataset...")
+    
+    df = extract_and_load_data()
+    if df is not None:
+        print("\nData loaded successfully!")
+        print(f"Original data shape: {df.shape}")
+        
+        # Clean the data
+        df = clean_data(df)
+        print(f"Cleaned data shape: {df.shape}")
+        print("\nColumns available:", df.columns.tolist())
+        
+        # Perform analysis
+        analyze_accidents(df)
+        print("\nAnalysis complete! Visualizations saved as PNG files.")
+        
+        # Save processed data
+        processed_path = Path(r"C:\Users\mitra\Downloads\RTA Dataset\processed_data.csv")
+        df.to_csv(processed_path, index=False)
+        print(f"\nProcessed data saved to: {processed_path}")
+    else:
+        print("\nFailed to load data. Please check:")
+        print("1. The zip file exists at C:\\Users\\mitra\\Downloads\\RTA Dataset.csv.zip")
+        print("2. You have sufficient disk space")
+        print("3. The file isn't corrupted")
+
+if __name__ == "__main__":
+    main()
